@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
-import { Loader2, Download, X } from "lucide-react"
+import { Loader2, Download } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 
 interface FilePreviewProps {
@@ -178,11 +178,8 @@ export default function FilePreview({ fileId, onClose }: FilePreviewProps) {
   return (
     <Dialog open={!!fileId} onOpenChange={() => onClose()}>
       <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="flex flex-row items-center justify-between">
+        <DialogHeader>
           <DialogTitle className="truncate max-w-[500px]">{fileDetails?.name || "File Preview"}</DialogTitle>
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="h-4 w-4" />
-          </Button>
         </DialogHeader>
         <div className="flex-1 overflow-auto py-4">{renderPreview()}</div>
         {fileDetails && (

@@ -19,7 +19,10 @@ export async function POST(request: Request) {
 
       // List items in the folder
       const items = await listItemsFromMisskey(folderId)
-      return NextResponse.json({ items })
+      return NextResponse.json({
+        items,
+        folderId: folderId,
+      })
     } catch (error) {
       console.error("Error listing items:", error)
       return NextResponse.json(

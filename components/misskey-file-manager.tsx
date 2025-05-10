@@ -2,15 +2,13 @@
 
 import type React from "react"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import {
-  Bell,
   Grid,
   LayoutGrid,
   Plus,
@@ -21,13 +19,21 @@ import {
   MoreHorizontal,
   Trash2,
   List,
-  Clock,
   FolderIcon,
   FileText,
   CheckCircle,
   XCircle,
   Download,
   Pencil,
+  ImageIcon,
+  Info,
+  AlertTriangle,
+  CheckSquare,
+  Square,
+  Move,
+  X,
+  FolderPlus,
+  ChevronDown,
 } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -45,6 +51,8 @@ import {
 import { Progress } from "@/components/ui/progress"
 import FilePreview from "./file-preview"
 import DragDropZone from "./drag-drop-zone"
+import ItemDetailsDialog from "./item-details-dialog"
+import FolderSelectDialog from "./folder-select-dialog"
 
 interface NavItemProps {
   href: string
@@ -101,13 +109,58 @@ interface FileCardProps {
   onDelete?: () => void
   onRename?: () => void
   onDownload?: () => void
+  onDetails?: () => void
+  onMove?: () => void
   type: "file" | "folder"
+  isSelected?: boolean
+  onSelect?: () => void
+  selectionMode?: boolean
 }
 
-function FileCard({ title, metadata, thumbnail, onClick, onDelete, onRename, onDownload, type }: FileCardProps) {
+function FileCard({
+  title,
+  metadata,
+  thumbnail,
+  onClick,
+  onDelete,
+  onRename,
+  onDownload,
+  onDetails,
+  onMove,
+  type,
+  isSelected,
+  onSelect,
+  selectionMode,
+}: FileCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-lg border bg-white">
-      <div className="aspect-[4/3] overflow-hidden cursor-pointer" onClick={onClick}>
+    <div
+      className={cn("group relative overflow-hidden rounded-lg border bg-white", isSelected && "ring-2 ring-blue-500")}
+    >
+      {/* 始终显示checkbox，但在非选择模式下隐藏 */}
+      <div
+        className={cn(
+          "absolute top-2 left-2 z-10 bg-white rounded-md shadow-sm p-1 cursor-pointer",
+          !selectionMode && "opacity-0 group-hover:opacity-100",
+        )}
+        onClick={(e) => {
+          e.stopPropagation()
+          if (onSelect) onSelect()
+        }}
+      >
+        {isSelected ? <CheckSquare className="h-5 w-5 text-blue-500" /> : <Square className="h-5 w-5 text-gray-400" />}
+      </div>
+
+      <div
+        className="aspect-[4/3] overflow-hidden cursor-pointer"
+        onClick={(e) => {
+          if (selectionMode && onSelect) {
+            e.stopPropagation()
+            onSelect()
+          } else if (onClick) {
+            onClick()
+          }
+        }}
+      >
         {type === "folder" ? (
           <div className="h-full w-full flex items-center justify-center bg-yellow-50">
             <svg className="w-24 h-24 text-yellow-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -134,30 +187,40 @@ function FileCard({ title, metadata, thumbnail, onClick, onDelete, onRename, onD
           <h3 className="font-medium text-gray-900 truncate max-w-[180px]">{title}</h3>
           <p className="text-sm text-gray-500">{metadata}</p>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">Open menu</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={onRename}>
-              <Pencil className="h-4 w-4 mr-2" />
-              Rename
-            </DropdownMenuItem>
-            {type === "file" && onDownload && (
-              <DropdownMenuItem onClick={onDownload}>
-                <Download className="h-4 w-4 mr-2" />
-                Download
+        {!selectionMode && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="sr-only">Open menu</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={onDetails}>
+                <Info className="h-4 w-4 mr-2" />
+                Details
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={onDelete}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+              <DropdownMenuItem onClick={onRename}>
+                <Pencil className="h-4 w-4 mr-2" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onMove}>
+                <Move className="h-4 w-4 mr-2" />
+                Move
+              </DropdownMenuItem>
+              {type === "file" && onDownload && (
+                <DropdownMenuItem onClick={onDownload}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem className="text-red-600 focus:text-red-600" onClick={onDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
     </div>
   )
@@ -169,9 +232,25 @@ interface FileListItemProps {
   onDelete: () => void
   onRename: () => void
   onDownload?: () => void
+  onDetails: () => void
+  onMove: () => void
+  isSelected?: boolean
+  onSelect?: () => void
+  selectionMode?: boolean
 }
 
-function FileListItem({ item, onClick, onDelete, onRename, onDownload }: FileListItemProps) {
+function FileListItem({
+  item,
+  onClick,
+  onDelete,
+  onRename,
+  onDownload,
+  onDetails,
+  onMove,
+  isSelected,
+  onSelect,
+  selectionMode,
+}: FileListItemProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString()
@@ -185,8 +264,27 @@ function FileListItem({ item, onClick, onDelete, onRename, onDownload }: FileLis
   }
 
   return (
-    <div className="flex items-center justify-between py-2 px-4 hover:bg-gray-50 border-b">
+    <div
+      className={cn(
+        "flex items-center justify-between py-2 px-4 hover:bg-gray-50 border-b",
+        isSelected && "bg-blue-50",
+      )}
+    >
       <div className="flex items-center flex-1 min-w-0 cursor-pointer" onClick={onClick}>
+        {/* 始终显示checkbox */}
+        <div
+          className="mr-2 cursor-pointer"
+          onClick={(e) => {
+            e.stopPropagation()
+            if (onSelect) onSelect()
+          }}
+        >
+          {isSelected ? (
+            <CheckSquare className="h-5 w-5 text-blue-500" />
+          ) : (
+            <Square className="h-5 w-5 text-gray-400" />
+          )}
+        </div>
         <div className="mr-3">
           {item.type === "folder" ? (
             <FolderIcon className="h-5 w-5 text-yellow-500" />
@@ -201,40 +299,62 @@ function FileListItem({ item, onClick, onDelete, onRename, onDownload }: FileLis
           </p>
         </div>
       </div>
-      <div className="flex items-center">
-        {item.type === "file" && onDownload && (
+      {!selectionMode && (
+        <div className="flex items-center">
           <Button
             variant="ghost"
             size="icon"
             onClick={(e) => {
               e.stopPropagation()
-              onDownload()
+              onDetails()
             }}
           >
-            <Download className="h-4 w-4 text-gray-500" />
+            <Info className="h-4 w-4 text-gray-500" />
           </Button>
-        )}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation()
-            onRename()
-          }}
-        >
-          <Pencil className="h-4 w-4 text-gray-500" />
-        </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={(e) => {
-            e.stopPropagation()
-            onDelete()
-          }}
-        >
-          <Trash2 className="h-4 w-4 text-gray-500" />
-        </Button>
-      </div>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              onMove()
+            }}
+          >
+            <Move className="h-4 w-4 text-gray-500" />
+          </Button>
+          {item.type === "file" && onDownload && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDownload()
+              }}
+            >
+              <Download className="h-4 w-4 text-gray-500" />
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              onRename()
+            }}
+          >
+            <Pencil className="h-4 w-4 text-gray-500" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete()
+            }}
+          >
+            <Trash2 className="h-4 w-4 text-gray-500" />
+          </Button>
+        </div>
+      )}
     </div>
   )
 }
@@ -249,6 +369,8 @@ interface FileItem {
   thumbnailUrl?: string
   folderId?: string
   url?: string
+  isImage?: boolean
+  isVideo?: boolean
 }
 
 interface UploadProgressItem {
@@ -266,9 +388,9 @@ interface MisskeyFileManagerProps {
 export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) {
   const [currentPath, setCurrentPath] = useState<string[]>([])
   const [items, setItems] = useState<FileItem[]>([])
-  const [recentFiles, setRecentFiles] = useState<FileItem[]>([])
+  const [mediaFiles, setMediaFiles] = useState<FileItem[]>([])
   const [isLoading, setIsLoading] = useState<boolean>(true)
-  const [isLoadingRecent, setIsLoadingRecent] = useState<boolean>(false)
+  const [isLoadingMedia, setIsLoadingMedia] = useState<boolean>(false)
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState<boolean>(false)
   const [newFolderName, setNewFolderName] = useState<string>("")
   const [isUploading, setIsUploading] = useState<boolean>(false)
@@ -278,17 +400,40 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false)
   const [previewFileId, setPreviewFileId] = useState<string | null>(null)
   const [loadError, setLoadError] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<string>("folder")
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid")
   const [collections, setCollections] = useState<{ name: string; id: string }[]>([])
   const [itemToRename, setItemToRename] = useState<FileItem | null>(null)
   const [isRenameDialogOpen, setIsRenameDialogOpen] = useState<boolean>(false)
   const [newItemName, setNewItemName] = useState<string>("")
   const [fileDetails, setFileDetails] = useState<Record<string, FileItem>>({})
+  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null)
+  const [activeView, setActiveView] = useState<"files" | "media">("files")
+  const [itemDetailsId, setItemDetailsId] = useState<string | null>(null)
+  const [itemDetailsType, setItemDetailsType] = useState<"file" | "folder" | null>(null)
+  const [isNSFWDialogOpen, setIsNSFWDialogOpen] = useState<boolean>(false)
+  const [nsfwFile, setNsfwFile] = useState<string | null>(null)
+
+  // 批量操作相关状态
+  const [selectionMode, setSelectionMode] = useState<boolean>(false)
+  const [selectedItems, setSelectedItems] = useState<FileItem[]>([])
+  const [isMoveDialogOpen, setIsMoveDialogOpen] = useState<boolean>(false)
+  const [itemToMove, setItemToMove] = useState<FileItem | null>(null)
+  const [isBatchMoveDialogOpen, setIsBatchMoveDialogOpen] = useState<boolean>(false)
+  const [isBatchDeleteDialogOpen, setIsBatchDeleteDialogOpen] = useState<boolean>(false)
+
+  // 搜索相关状态
+  const [searchQuery, setSearchQuery] = useState<string>("")
+  const [searchResults, setSearchResults] = useState<FileItem[]>([])
+  const [isSearching, setIsSearching] = useState<boolean>(false)
+  const [isSearchMode, setIsSearchMode] = useState<boolean>(false)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // 文件上传引用
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Get the current directory path string
   const getCurrentPathString = useCallback(() => {
-    return `drive/${userId}/data${currentPath.length > 0 ? "/" + currentPath.join("/") : ""}`
+    return `drive/${userId}${currentPath.length > 0 ? "/" + currentPath.join("/") : ""}`
   }, [userId, currentPath])
 
   const testConnection = async () => {
@@ -349,46 +494,45 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
     }
   }, [userId, toast])
 
-  // Load recent files
-  const loadRecentFiles = useCallback(async () => {
-    if (activeTab !== "recent") return
+  // Load media files
+  const loadMediaFiles = useCallback(async () => {
+    if (activeView !== "media") return
 
-    setIsLoadingRecent(true)
+    setIsLoadingMedia(true)
     try {
-      const response = await fetch("/api/recent-files", {
+      const response = await fetch("/api/scan-media", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
           userId,
-          limit: 20,
         }),
       })
 
       if (!response.ok) {
         const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to load recent files")
+        throw new Error(errorData.error || "Failed to load media files")
       }
 
       const data = await response.json()
-      setRecentFiles(data.files || [])
+      setMediaFiles(data.mediaFiles || [])
     } catch (error) {
-      console.error("Error loading recent files:", error)
+      console.error("Error loading media files:", error)
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to load recent files",
+        description: error instanceof Error ? error.message : "Failed to load media files",
         variant: "destructive",
       })
     } finally {
-      setIsLoadingRecent(false)
+      setIsLoadingMedia(false)
     }
-  }, [userId, activeTab, toast])
+  }, [userId, activeView, toast])
 
   // Update the loadItems function
   const loadItems = useCallback(async () => {
-    if (activeTab === "recent") {
-      loadRecentFiles()
+    if (activeView === "media") {
+      loadMediaFiles()
       return
     }
 
@@ -414,6 +558,11 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
 
       const data = await response.json()
 
+      // Store the current folder ID if available
+      if (data.folderId) {
+        setCurrentFolderId(data.folderId)
+      }
+
       // Sort items: folders first, then files, both alphabetically
       const sortedItems = data.items.sort((a: FileItem, b: FileItem) => {
         // First sort by type (folders first)
@@ -436,17 +585,112 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
     } finally {
       setIsLoading(false)
     }
-  }, [userId, getCurrentPathString, toast, activeTab, loadRecentFiles])
+  }, [userId, getCurrentPathString, toast, activeView, loadMediaFiles])
+
+  // 搜索文件和文件夹
+  const searchItems = useCallback(
+    async (query: string) => {
+      if (!query.trim()) {
+        setIsSearchMode(false)
+        return
+      }
+
+      setIsSearching(true)
+      setIsSearchMode(true)
+
+      try {
+        const response = await fetch("/api/search-items", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId,
+            query,
+          }),
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || "Failed to search items")
+        }
+
+        const data = await response.json()
+
+        // 排序结果：文件夹优先，然后按名称排序
+        const sortedResults = data.results.sort((a: FileItem, b: FileItem) => {
+          if (a.type !== b.type) {
+            return a.type === "folder" ? -1 : 1
+          }
+          return a.name.localeCompare(b.name)
+        })
+
+        setSearchResults(sortedResults)
+      } catch (error) {
+        console.error("Error searching items:", error)
+        toast({
+          title: "Error",
+          description: error instanceof Error ? error.message : "Failed to search items",
+          variant: "destructive",
+        })
+      } finally {
+        setIsSearching(false)
+      }
+    },
+    [userId, toast],
+  )
+
+  // 处理搜索输入变化
+  const handleSearchInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value
+    setSearchQuery(query)
+
+    // 清除之前的定时器
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // 如果查询为空，退出搜索模式
+    if (!query.trim()) {
+      setIsSearchMode(false)
+      setSearchResults([])
+      return
+    }
+
+    // 设置新的定时器，延迟搜索以减少API调用
+    searchTimeoutRef.current = setTimeout(() => {
+      searchItems(query)
+    }, 500)
+  }
+
+  // 清除搜索
+  const clearSearch = () => {
+    setSearchQuery("")
+    setIsSearchMode(false)
+    setSearchResults([])
+  }
 
   // Load items when component mounts or path changes
   useEffect(() => {
     loadItems()
-  }, [loadItems, currentPath, activeTab])
+    // 退出搜索模式
+    setIsSearchMode(false)
+    setSearchQuery("")
+  }, [loadItems, currentPath, activeView])
 
   // Load collections when component mounts
   useEffect(() => {
     loadCollections()
   }, [loadCollections])
+
+  // 清理搜索定时器
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [])
 
   // Get file details for download
   const getFileDetails = useCallback(
@@ -495,20 +739,32 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
   // Navigate to a folder
   const navigateToFolder = (folderName: string) => {
     setCurrentPath([...currentPath, folderName])
-    setActiveTab("folder") // Switch to folder view when navigating
+    setActiveView("files") // Switch to files view when navigating
+
+    // 退出选择模式
+    setSelectionMode(false)
+    setSelectedItems([])
   }
 
   // Navigate to a specific collection
   const navigateToCollection = (collectionName: string) => {
     // Reset path and set to the collection
     setCurrentPath([collectionName])
-    setActiveTab("folder") // Switch to folder view when navigating
+    setActiveView("files") // Switch to files view when navigating
+
+    // 退出选择模式
+    setSelectionMode(false)
+    setSelectedItems([])
   }
 
   // Navigate up one level
   const navigateUp = () => {
     if (currentPath.length > 0) {
       setCurrentPath(currentPath.slice(0, -1))
+
+      // 退出选择模式
+      setSelectionMode(false)
+      setSelectedItems([])
     }
   }
 
@@ -580,20 +836,56 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         throw new Error(data.error || "Failed to ensure directory exists")
       }
 
-      return true
+      const result = await response.json()
+      setCurrentFolderId(result.directoryId || null)
+      return {
+        success: true,
+        directoryId: result.directoryId || null,
+      }
     } catch (error) {
       console.error("Error ensuring directory exists:", error)
       throw error
     }
   }
 
-  // Update the handleFileUpload function to handle large files and show progress
+  // 检查图片是否包含 NSFW 内容
+  const checkNSFWContent = async (file: File): Promise<boolean> => {
+    // 如果不是图片，跳过检查
+    if (!file.type.startsWith("image/")) {
+      return false
+    }
+
+    try {
+      const formData = new FormData()
+      formData.append("file", file)
+
+      const response = await fetch("/api/check-nsfw", {
+        method: "POST",
+        body: formData,
+      })
+
+      if (!response.ok) {
+        console.error("NSFW check failed:", response.statusText)
+        return false // 如果检查失败，允许上传继续
+      }
+
+      const result = await response.json()
+      console.log("NSFW check result:", result)
+
+      return result.isNSFW
+    } catch (error) {
+      console.error("Error checking NSFW content:", error)
+      return false // 如果发生错误，允许上传继续
+    }
+  }
+
+  // 修改文件上传函数，添加 NSFW 检测
   const handleFileUpload = async (fileList: FileList) => {
     if (!fileList || fileList.length === 0) return
 
     setIsUploading(true)
 
-    // Initialize progress tracking for each file
+    // 初始化进度跟踪
     const progressItems: UploadProgressItem[] = Array.from(fileList).map((file) => ({
       id: Math.random().toString(36).substring(2, 9),
       name: file.name,
@@ -604,87 +896,124 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
     setUploadProgress(progressItems)
 
     try {
-      // First ensure the directory exists
-      await ensureDirectoryExists(getCurrentPathString())
+      // 确保目录存在
+      const directoryResponse = await ensureDirectoryExists(getCurrentPathString())
+      const folderId = directoryResponse.directoryId || null
 
-      // Upload files one by one to track progress
+      // 逐个上传文件
       for (let i = 0; i < fileList.length; i++) {
         const file = fileList[i]
         const progressItem = progressItems[i]
 
         try {
-          // Update progress to show we're starting
+          // 更新进度
           setUploadProgress((prev) =>
             prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 5 } : item)),
           )
 
-          // Create a FormData for this specific file
+          // 检查是否包含 NSFW 内容
+          if (file.type.startsWith("image/")) {
+            setUploadProgress((prev) =>
+              prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 10, status: "uploading" } : item)),
+            )
+
+            const isNSFW = await checkNSFWContent(file)
+
+            if (isNSFW) {
+              // 如果检测到 NSFW 内容，拒绝上传
+              setNsfwFile(file.name)
+              setIsNSFWDialogOpen(true)
+
+              setUploadProgress((prev) =>
+                prev.map((item) =>
+                  item.id === progressItem.id
+                    ? {
+                        ...item,
+                        status: "error",
+                        error: "Content detected as inappropriate",
+                      }
+                    : item,
+                ),
+              )
+
+              continue // 跳过此文件的上传
+            }
+          }
+
+          // 获取上传令牌/URL
+          const tokenResponse = await fetch("/api/get-upload-token", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              folderId: folderId,
+              path: getCurrentPathString(),
+            }),
+          })
+
+          if (!tokenResponse.ok) {
+            const errorData = await tokenResponse.json()
+            throw new Error(errorData.error || "Failed to get upload token")
+          }
+
+          const { uploadUrl, apiKey, folderId: uploadFolderId } = await tokenResponse.json()
+
+          // 创建用于直接上传到 Misskey 的 FormData
           const formData = new FormData()
-          formData.append("userId", userId)
-          formData.append("path", getCurrentPathString())
-          formData.append("files", file)
+          formData.append("i", apiKey)
+          formData.append("file", file)
+          if (uploadFolderId) {
+            formData.append("folderId", uploadFolderId)
+          }
 
-          console.log(`Uploading file: ${file.name}, size: ${file.size}, type: ${file.type}`)
+          // 更新进度
+          setUploadProgress((prev) =>
+            prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 20 } : item)),
+          )
 
-          // Send the upload request
-          const response = await fetch("/api/upload-files", {
+          console.log(`Uploading file directly to Misskey: ${file.name}, size: ${file.size}`)
+
+          // 直接上传到 Misskey
+          const uploadResponse = await fetch(uploadUrl, {
             method: "POST",
             body: formData,
           })
 
-          // Check if the response is ok
-          if (!response.ok) {
-            const errorText = await response.text()
-            console.error(`Upload failed with status ${response.status}:`, errorText)
-            throw new Error(`Upload failed with status ${response.status}`)
+          // 更新进度
+          setUploadProgress((prev) =>
+            prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 80 } : item)),
+          )
+
+          // 检查响应是否成功
+          if (!uploadResponse.ok) {
+            const errorText = await uploadResponse.text()
+            console.error(`Upload failed with status ${uploadResponse.status}:`, errorText)
+            throw new Error(`Upload failed with status ${uploadResponse.status}`)
           }
 
-          // Parse the response
+          // 尝试解析响应
           let responseData
           try {
-            responseData = await response.json()
-            console.log("Upload response:", responseData)
+            responseData = await uploadResponse.json()
+            console.log("Direct upload response:", responseData)
           } catch (jsonError) {
             console.error("Failed to parse response JSON:", jsonError)
             throw new Error("Invalid response from server")
           }
 
-          // Check if the upload was successful
-          if (!responseData.success) {
-            throw new Error(responseData.error || "Upload failed")
-          }
-
-          // Check the results for this specific file
-          const fileResult = responseData.results?.find((r: any) => r.fileName === file.name)
-
-          if (fileResult && fileResult.success) {
-            // Update progress to 100% for success
-            setUploadProgress((prev) =>
-              prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 100, status: "success" } : item)),
-            )
-            console.log(`File ${file.name} uploaded successfully`)
-          } else {
-            // Update progress to show error
-            const errorMessage = fileResult?.error || "Upload failed"
-            setUploadProgress((prev) =>
-              prev.map((item) =>
-                item.id === progressItem.id
-                  ? {
-                      ...item,
-                      status: "error",
-                      progress: 0,
-                      error: errorMessage,
-                    }
-                  : item,
-              ),
-            )
-            console.error(`File ${file.name} upload failed:`, errorMessage)
-            throw new Error(errorMessage)
-          }
+          // 更新进度为 100% 表示成功
+          setUploadProgress((prev) =>
+            prev.map((item) => (item.id === progressItem.id ? { ...item, progress: 100, status: "success" } : item)),
+          )
+          console.log(`File ${file.name} uploaded successfully`)
         } catch (error) {
           console.error(`Error uploading file ${file.name}:`, error)
 
-          // Update progress to show error
+          // 更新进度以显示错误
           setUploadProgress((prev) =>
             prev.map((item) =>
               item.id === progressItem.id
@@ -699,7 +1028,7 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         }
       }
 
-      // Check if any files failed
+      // 检查是否有文件上传失败
       const failedFiles = progressItems.filter((item) => item.status === "error")
 
       if (failedFiles.length > 0) {
@@ -722,10 +1051,12 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         })
       }
 
-      // Reload items after a short delay to allow server processing
+      // 短暂延迟后重新加载项目，以便服务器处理
       setTimeout(() => {
         loadItems()
-        loadRecentFiles()
+        if (activeView === "media") {
+          loadMediaFiles()
+        }
       }, 1000)
     } catch (error) {
       console.error("Error in upload process:", error)
@@ -735,7 +1066,7 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         variant: "destructive",
       })
     } finally {
-      // Keep the progress visible for a moment before clearing
+      // 保持进度可见一段时间后再清除
       setTimeout(() => {
         setIsUploading(false)
         setUploadProgress([])
@@ -771,12 +1102,202 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
       setIsDeleteDialogOpen(false)
       setItemToDelete(null)
       loadItems()
-      loadRecentFiles()
+      if (activeView === "media") {
+        loadMediaFiles()
+      }
       loadCollections() // Refresh collections if we deleted a top-level folder
     } catch (error) {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to delete item",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // 批量删除项目
+  const handleBatchDelete = async () => {
+    if (selectedItems.length === 0) return
+
+    try {
+      // 逐个删除所选项目
+      const results = await Promise.all(
+        selectedItems.map(async (item) => {
+          try {
+            const response = await fetch("/api/delete-item", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                itemId: item.id,
+                itemType: item.type,
+              }),
+            })
+
+            if (!response.ok) {
+              const data = await response.json()
+              throw new Error(data.error || `Failed to delete ${item.type}`)
+            }
+
+            return { id: item.id, success: true }
+          } catch (error) {
+            console.error(`Error deleting ${item.type} ${item.id}:`, error)
+            return {
+              id: item.id,
+              success: false,
+              error: error instanceof Error ? error.message : "Failed to delete item",
+            }
+          }
+        }),
+      )
+
+      // 检查结果
+      const successCount = results.filter((result) => result.success).length
+      const failureCount = results.length - successCount
+
+      if (failureCount > 0) {
+        if (successCount > 0) {
+          toast({
+            title: "Partial Success",
+            description: `${successCount} of ${results.length} items deleted successfully`,
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: "Failed to delete any items",
+            variant: "destructive",
+          })
+        }
+      } else {
+        toast({
+          title: "Success",
+          description: `${successCount} item(s) deleted successfully`,
+        })
+      }
+
+      // 关闭对话框并重置状态
+      setIsBatchDeleteDialogOpen(false)
+      setSelectionMode(false)
+      setSelectedItems([])
+
+      // 重新加载项目
+      loadItems()
+      if (activeView === "media") {
+        loadMediaFiles()
+      }
+      loadCollections()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to delete items",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // 移动单个项目
+  const handleMoveItem = async (targetFolderId: string, targetFolderPath: string) => {
+    if (!itemToMove) return
+
+    try {
+      const response = await fetch("/api/move-items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: [{ id: itemToMove.id, type: itemToMove.type }],
+          targetFolderId,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || `Failed to move ${itemToMove.type}`)
+      }
+
+      const result = await response.json()
+
+      if (result.successCount > 0) {
+        toast({
+          title: "Success",
+          description: `${itemToMove.type === "folder" ? "Folder" : "File"} moved to ${targetFolderPath}`,
+        })
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to move ${itemToMove.type}`,
+          variant: "destructive",
+        })
+      }
+
+      setIsMoveDialogOpen(false)
+      setItemToMove(null)
+      loadItems()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to move item",
+        variant: "destructive",
+      })
+    }
+  }
+
+  // 批量移动项目
+  const handleBatchMove = async (targetFolderId: string, targetFolderPath: string) => {
+    if (selectedItems.length === 0) return
+
+    try {
+      const itemsToMove = selectedItems.map((item) => ({
+        id: item.id,
+        type: item.type,
+      }))
+
+      const response = await fetch("/api/move-items", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          items: itemsToMove,
+          targetFolderId,
+        }),
+      })
+
+      if (!response.ok) {
+        const data = await response.json()
+        throw new Error(data.error || "Failed to move items")
+      }
+
+      const result = await response.json()
+
+      if (result.successCount === 0) {
+        toast({
+          title: "Error",
+          description: "Failed to move any items",
+          variant: "destructive",
+        })
+      } else if (result.successCount < selectedItems.length) {
+        toast({
+          title: "Partial Success",
+          description: `${result.successCount} of ${selectedItems.length} items moved to ${targetFolderPath}`,
+        })
+      } else {
+        toast({
+          title: "Success",
+          description: `${result.successCount} item(s) moved to ${targetFolderPath}`,
+        })
+      }
+
+      setIsBatchMoveDialogOpen(false)
+      setSelectionMode(false)
+      setSelectedItems([])
+      loadItems()
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to move items",
         variant: "destructive",
       })
     }
@@ -812,7 +1333,9 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
       setItemToRename(null)
       setNewItemName("")
       loadItems()
-      loadRecentFiles()
+      if (activeView === "media") {
+        loadMediaFiles()
+      }
       loadCollections() // Refresh collections if we renamed a top-level folder
     } catch (error) {
       toast({
@@ -853,53 +1376,109 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
     }
   }
 
-  // Determine which items to display based on the active tab
-  const displayItems = activeTab === "recent" ? recentFiles : items
+  // 切换项目选择
+  const toggleItemSelection = (item: FileItem) => {
+    setSelectedItems((prev) => {
+      const isSelected = prev.some((i) => i.id === item.id)
+      if (isSelected) {
+        return prev.filter((i) => i.id !== item.id)
+      } else {
+        return [...prev, item]
+      }
+    })
+  }
+
+  // 选择所有项目
+  const selectAllItems = () => {
+    const displayedItems = isSearchMode ? searchResults : activeView === "media" ? mediaFiles : items
+    setSelectedItems(displayedItems)
+  }
+
+  // 取消选择所有项目
+  const deselectAllItems = () => {
+    setSelectedItems([])
+  }
+
+  // 切换选择模式
+  const toggleSelectionMode = () => {
+    setSelectionMode((prev) => !prev)
+    if (!selectionMode) {
+      // 进入选择模式时清空选择
+      setSelectedItems([])
+    }
+  }
+
+  // 处理文件上传按钮点击
+  const handleUploadButtonClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click()
+    }
+  }
+
+  // Determine which items to display based on the active view and search mode
+  const displayItems = isSearchMode ? searchResults : activeView === "media" ? mediaFiles : items
 
   return (
     <div className="flex h-screen bg-white">
       {/* Sidebar */}
       <div className="w-64 border-r bg-white">
         <div className="p-4">
-          <h1 className="text-xl font-bold">MISSKEY Drive</h1>
+          <h1 className="text-xl font-bold">NexDrive</h1>
+
+          {/* Create按钮 */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button className="w-full mt-4" style={{ backgroundColor: "#0066ff" }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Create
+                <ChevronDown className="h-4 w-4 ml-2" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuItem onClick={() => setIsCreateFolderOpen(true)}>
+                <FolderPlus className="h-4 w-4 mr-2" />
+                New Folder
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleUploadButtonClick}>
+                <Upload className="h-4 w-4 mr-2" />
+                Upload Files
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* 隐藏的文件上传输入 */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            multiple
+            className="hidden"
+            onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
+            disabled={isUploading}
+          />
         </div>
         <nav className="space-y-1 px-2">
           <NavItem
             href="#"
             icon={<LayoutGrid className="h-4 w-4" />}
-            active={currentPath.length === 0 && activeTab !== "recent"}
+            active={activeView === "files"}
             onClick={() => {
-              setCurrentPath([])
-              setActiveTab("folder")
+              setActiveView("files")
+              clearSearch()
             }}
           >
-            All content
+            All Files
           </NavItem>
           <NavItem
             href="#"
-            icon={<Clock className="h-4 w-4" />}
-            active={activeTab === "recent"}
+            icon={<ImageIcon className="h-4 w-4" />}
+            active={activeView === "media"}
             onClick={() => {
-              setActiveTab("recent")
-              loadRecentFiles()
+              setActiveView("media")
+              loadMediaFiles()
+              clearSearch()
             }}
           >
-            Recent Files
-          </NavItem>
-          <NavItem
-            href="#"
-            icon={
-              <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
-                  d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2M9 5h6m-3 4v6m-3-3h6"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-            }
-          >
-            Shared with me
+            Photos & Videos
           </NavItem>
           <div className="py-3">
             <div className="px-3 text-xs font-medium uppercase text-gray-500">Collections</div>
@@ -924,7 +1503,18 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
           <div className="w-96">
             <div className="relative">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
-              <Input type="search" placeholder="Search files..." className="pl-9" />
+              <Input
+                type="search"
+                placeholder="Search files..."
+                className="pl-9 pr-9"
+                value={searchQuery}
+                onChange={handleSearchInputChange}
+              />
+              {searchQuery && (
+                <button className="absolute right-2.5 top-2.5 text-gray-500 hover:text-gray-700" onClick={clearSearch}>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -939,9 +1529,6 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
             >
               {viewMode === "grid" ? <List className="h-4 w-4" /> : <Grid className="h-4 w-4" />}
             </Button>
-            <Button variant="ghost" size="icon">
-              <Bell className="h-4 w-4" />
-            </Button>
             <div className="h-8 w-8 overflow-hidden rounded-full">
               <div className="h-full w-full bg-gray-200 flex items-center justify-center text-gray-600 font-medium">
                 {userId.substring(0, 2).toUpperCase()}
@@ -951,34 +1538,77 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         </header>
 
         <div className="p-6 flex-1 overflow-auto">
-          <div className="mb-6 flex items-center gap-4">
-            <Button className="gap-2" onClick={() => setIsCreateFolderOpen(true)}>
-              <Plus className="h-4 w-4" />
-              Create Folder
-            </Button>
-            <Button variant="outline" className="gap-2" asChild>
-              <label>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload Files
-                <input
-                  type="file"
-                  multiple
-                  className="hidden"
-                  onChange={(e) => e.target.files && handleFileUpload(e.target.files)}
-                  disabled={isUploading}
-                />
-              </label>
-            </Button>
-            {currentPath.length > 0 && activeTab !== "recent" && (
-              <Button variant="outline" className="gap-2" onClick={navigateUp}>
-                <ArrowLeft className="h-4 w-4" />
-                Back
+          {/* 批量操作工具栏 */}
+          {selectionMode && (
+            <div className="mb-4 p-2 bg-blue-50 rounded-lg flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">{selectedItems.length} item(s) selected</span>
+                <Button variant="outline" size="sm" onClick={selectAllItems}>
+                  Select All
+                </Button>
+                <Button variant="outline" size="sm" onClick={deselectAllItems}>
+                  Deselect All
+                </Button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsBatchMoveDialogOpen(true)}
+                  disabled={selectedItems.length === 0}
+                >
+                  <Move className="h-4 w-4 mr-1" />
+                  Move
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-red-600 border-red-200 hover:bg-red-50"
+                  onClick={() => setIsBatchDeleteDialogOpen(true)}
+                  disabled={selectedItems.length === 0}
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete
+                </Button>
+                <Button variant="ghost" size="sm" onClick={toggleSelectionMode}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!selectionMode && !isSearchMode && activeView === "files" && (
+            <div className="mb-6 flex items-center gap-4">
+              {currentPath.length > 0 && (
+                <Button variant="outline" className="gap-2" onClick={navigateUp}>
+                  <ArrowLeft className="h-4 w-4" />
+                  Back
+                </Button>
+              )}
+              <Button variant="outline" className="gap-2" onClick={toggleSelectionMode}>
+                <CheckSquare className="h-4 w-4" />
+                Select
               </Button>
-            )}
-          </div>
+            </div>
+          )}
+
+          {/* 搜索模式标题 */}
+          {isSearchMode && (
+            <div className="mb-4 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-medium">Search results for "{searchQuery}"</h2>
+                <span className="text-sm text-gray-500">({searchResults.length} items)</span>
+              </div>
+              <Button variant="outline" size="sm" onClick={clearSearch}>
+                <X className="h-4 w-4 mr-1" />
+                Clear Search
+              </Button>
+            </div>
+          )}
 
           {/* Path breadcrumb */}
-          {currentPath.length > 0 && activeTab !== "recent" && (
+          {currentPath.length > 0 && activeView === "files" && !isSearchMode && (
             <div className="mb-4 text-sm text-gray-500">
               <span>Path: </span>
               <button className="hover:underline text-blue-600" onClick={() => setCurrentPath([])}>
@@ -997,18 +1627,6 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
               ))}
             </div>
           )}
-
-          {/* Tab navigation */}
-          <div className="mb-6">
-            <Tabs value={activeTab} onValueChange={setActiveTab}>
-              <TabsList>
-                <TabsTrigger value="folder">Folder</TabsTrigger>
-                <TabsTrigger value="recent">Recent</TabsTrigger>
-                <TabsTrigger value="starred">Starred</TabsTrigger>
-                <TabsTrigger value="shared">Shared</TabsTrigger>
-              </TabsList>
-            </Tabs>
-          </div>
 
           {/* Upload progress */}
           {uploadProgress.length > 0 && (
@@ -1034,7 +1652,7 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
           )}
 
           {/* Content area */}
-          {(isLoading && activeTab !== "recent") || (isLoadingRecent && activeTab === "recent") ? (
+          {(isLoading && activeView === "files") || (isLoadingMedia && activeView === "media") || isSearching ? (
             <div className="flex justify-center items-center h-64">
               <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
             </div>
@@ -1046,9 +1664,20 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
           ) : displayItems.length === 0 ? (
             <div>
               <div className="text-center py-4 text-gray-500 mb-4">
-                {activeTab === "recent" ? "No recent files found" : "This folder is empty"}
+                {isSearchMode
+                  ? "No search results found"
+                  : activeView === "media"
+                    ? "No media files found"
+                    : "This folder is empty"}
               </div>
-              {activeTab !== "recent" && <DragDropZone onUpload={handleFileUpload} isUploading={isUploading} />}
+              {activeView === "files" && !isSearchMode && (
+                <DragDropZone
+                  onUpload={handleFileUpload}
+                  isUploading={isUploading}
+                  currentPath={getCurrentPathString()}
+                  folderId={currentFolderId}
+                />
+              )}
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
@@ -1079,7 +1708,18 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
                     setNewItemName(item.name)
                     setIsRenameDialogOpen(true)
                   }}
+                  onMove={() => {
+                    setItemToMove(item)
+                    setIsMoveDialogOpen(true)
+                  }}
                   onDownload={item.type === "file" ? () => handleDownloadFile(item.id) : undefined}
+                  onDetails={() => {
+                    setItemDetailsId(item.id)
+                    setItemDetailsType(item.type)
+                  }}
+                  isSelected={selectedItems.some((i) => i.id === item.id)}
+                  onSelect={() => toggleItemSelection(item)}
+                  selectionMode={selectionMode}
                 />
               ))}
             </div>
@@ -1105,7 +1745,18 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
                     setNewItemName(item.name)
                     setIsRenameDialogOpen(true)
                   }}
+                  onMove={() => {
+                    setItemToMove(item)
+                    setIsMoveDialogOpen(true)
+                  }}
                   onDownload={item.type === "file" ? () => handleDownloadFile(item.id) : undefined}
+                  onDetails={() => {
+                    setItemDetailsId(item.id)
+                    setItemDetailsType(item.type)
+                  }}
+                  isSelected={selectedItems.some((i) => i.id === item.id)}
+                  onSelect={() => toggleItemSelection(item)}
+                  selectionMode={selectionMode}
                 />
               ))}
             </div>
@@ -1149,6 +1800,23 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         </DialogContent>
       </Dialog>
 
+      {/* Move Item Dialog */}
+      <FolderSelectDialog
+        isOpen={isMoveDialogOpen}
+        onClose={() => setIsMoveDialogOpen(false)}
+        onSelect={handleMoveItem}
+        userId={userId}
+        currentFolderId={itemToMove?.id}
+      />
+
+      {/* Batch Move Dialog */}
+      <FolderSelectDialog
+        isOpen={isBatchMoveDialogOpen}
+        onClose={() => setIsBatchMoveDialogOpen(false)}
+        onSelect={handleBatchMove}
+        userId={userId}
+      />
+
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <AlertDialogContent>
@@ -1169,8 +1837,59 @@ export default function MisskeyFileManager({ userId }: MisskeyFileManagerProps) 
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Batch Delete Confirmation Dialog */}
+      <AlertDialog open={isBatchDeleteDialogOpen} onOpenChange={setIsBatchDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedItems.length} items?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the selected items. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBatchDelete} className="bg-red-600 hover:bg-red-700">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* File Preview Dialog */}
       <FilePreview fileId={previewFileId} onClose={() => setPreviewFileId(null)} />
+
+      {/* Item Details Dialog */}
+      <ItemDetailsDialog
+        itemId={itemDetailsId}
+        itemType={itemDetailsType}
+        onClose={() => {
+          setItemDetailsId(null)
+          setItemDetailsType(null)
+        }}
+      />
+
+      {/* NSFW 内容警告对话框 */}
+      <AlertDialog open={isNSFWDialogOpen} onOpenChange={setIsNSFWDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-red-500 mr-2" />
+              Inappropriate Content Detected
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              The file <span className="font-medium">{nsfwFile}</span> appears to contain inappropriate content and has
+              been blocked from uploading.
+              <div className="mt-2 p-3 bg-red-50 rounded-md text-sm">
+                Our system detected potentially explicit or inappropriate content in this image. To maintain a safe
+                environment, the upload has been blocked.
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIsNSFWDialogOpen(false)}>Understand</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

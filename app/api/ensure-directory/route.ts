@@ -103,5 +103,6 @@ async function ensureDirectoryPath(path: string) {
     }
   }
 
+  // Update the response to include the directory ID
   return currentFolderId
 }

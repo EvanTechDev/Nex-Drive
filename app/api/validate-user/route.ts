@@ -50,10 +50,6 @@ async function ensureUserDirectory(userId: string) {
     const userDir = await createDirectoryIfNotExists(baseDir.id, userId)
     console.log("User directory:", userDir)
 
-    // Finally create the data directory if it doesn't exist
-    const dataDir = await createDirectoryIfNotExists(userDir.id, "data")
-    console.log("Data directory:", dataDir)
-
     return true
   } catch (error) {
     console.error("Error in directory creation:", error)

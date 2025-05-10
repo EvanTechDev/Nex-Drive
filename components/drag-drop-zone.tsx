@@ -9,9 +9,11 @@ import { Upload } from "lucide-react"
 interface DragDropZoneProps {
   onUpload: (files: FileList) => Promise<void>
   isUploading: boolean
+  currentPath: string
+  folderId?: string | null
 }
 
-export default function DragDropZone({ onUpload, isUploading }: DragDropZoneProps) {
+export default function DragDropZone({ onUpload, isUploading, currentPath, folderId }: DragDropZoneProps) {
   const [isDragging, setIsDragging] = useState(false)
   const { toast } = useToast()
 
@@ -68,6 +70,7 @@ export default function DragDropZone({ onUpload, isUploading }: DragDropZoneProp
         <Upload className={`h-10 w-10 mb-2 ${isDragging ? "text-blue-500" : "text-gray-400"}`} />
         <p className="text-sm font-medium mb-1">{isUploading ? "Uploading..." : "Drag and drop files here"}</p>
         <p className="text-xs text-gray-500">or click the Upload button above</p>
+        <p className="text-xs text-gray-500 mt-2">Current path: {currentPath}</p>
       </div>
     </div>
   )
